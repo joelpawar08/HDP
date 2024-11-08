@@ -4,7 +4,10 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn import svm
+from sklearn.tree import DecisionTreeClassifier, export_graphviz
+from sklearn.ensemble import VotingClassifier
 from sklearn.metrics import accuracy_score
+from graphviz import Source
 
 # Load dataset
 url = "https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/processed.cleveland.data"
@@ -26,14 +29,17 @@ scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
-# Train SVM model
-model = svm.SVC(kernel='linear')
-model.fit(X_train, y_train)
+# Define individual models
+svm_clf = svm.SVC(kernel='linear', probability=True, random_state=42)
+dt_clf = DecisionTreeClassifier(random_state=42)
+
+# Create an ensemble model (Voting Classifier)
+ensemble_model = VotingClassifier(estimators=[('svm', svm_clf), ('dt', dt_clf)], voting='soft')
+ensemble_model.fit(X_train, y_train)
 
 # Streamlit App
-
 # Title
-st.title("Heart Disease Prediction App")
+st.title("Heart Disease Prediction App with Ensemble Model")
 
 # User Input
 st.sidebar.header('Input Features')
@@ -63,14 +69,23 @@ input_data_scaled = scaler.transform(input_data)
 
 # Make Prediction
 if st.sidebar.button('Predict'):
-    prediction = model.predict(input_data_scaled)
+    prediction = ensemble_model.predict(input_data_scaled)
     if prediction[0] == 1:
-        st.write("Prediction: You are likely to have Heart Disease Please Consult a Docto.")
+        st.write("Prediction: You are likely to have Heart Disease. Please consult a doctor.")
     else:
-        st.write("Prediction: Congratulations ! You are unlikely to have Heart Disease. Be safe Be healthy")
+        st.write("Prediction: Congratulations! You are unlikely to have Heart Disease. Be safe, be healthy.")
 
 # Model Accuracy
 st.subheader("Model Accuracy")
-y_pred = model.predict(X_test)
+y_pred = ensemble_model.predict(X_test)
 accuracy = accuracy_score(y_test, y_pred)
-st.write(f"Accuracy of the SVM model: {accuracy * 100:.2f}%")
+st.write(f"Accuracy of the Ensemble Model: {accuracy * 100:.2f}%")
+
+# Decision Tree Visualization
+st.subheader("Decision Tree Visualization")
+
+# Export the decision tree from the ensemble model
+dt_clf.fit(X_train, y_train)  # Ensure the Decision Tree is fitted
+dot_data = export_graphviz(dt_clf, feature_names=X.columns, class_names=['No Disease', 'Disease'], filled=True, rounded=True, special_characters=True)
+graph = Source(dot_data)
+st.graphviz_chart(graph.source)
